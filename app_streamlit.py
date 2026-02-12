@@ -11,6 +11,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 import os
 from datetime import datetime
+import hashlib
+import shutil
+from pathlib import Path
+from urllib.request import Request, urlopen
+
+DB_PATH = Path("report_writing_python.duckdb")
 
 # Page configuration
 st.set_page_config(
@@ -26,6 +32,65 @@ st.markdown("Ask questions about effective report writing based on the stored do
 # Initialize session state
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+
+
+def _get_config(name):
+    """Read a config value from Streamlit secrets, then environment."""
+    if name in st.secrets:
+        return st.secrets[name]
+    return os.getenv(name)
+
+
+def _file_sha256(path):
+    """Compute SHA256 for integrity checks."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def ensure_database():
+    """
+    Ensure DB exists locally.
+    If missing, try downloading from a private URL configured in secrets/env:
+    - RAG_DB_URL
+    - RAG_DB_BEARER_TOKEN (optional)
+    - RAG_DB_SHA256 (optional)
+    """
+    if DB_PATH.exists():
+        return True, "local"
+
+    db_url = _get_config("RAG_DB_URL")
+    if not db_url:
+        return False, (
+            "Database not found and no `RAG_DB_URL` configured. "
+            "Set Streamlit secrets to fetch a private DB file."
+        )
+
+    headers = {}
+    bearer_token = _get_config("RAG_DB_BEARER_TOKEN")
+    if bearer_token:
+        headers["Authorization"] = f"Bearer {bearer_token}"
+
+    tmp_path = DB_PATH.with_suffix(DB_PATH.suffix + ".tmp")
+    try:
+        req = Request(db_url, headers=headers)
+        with urlopen(req, timeout=180) as response, open(tmp_path, "wb") as out:
+            shutil.copyfileobj(response, out)
+
+        expected_sha = _get_config("RAG_DB_SHA256")
+        if expected_sha:
+            actual_sha = _file_sha256(tmp_path)
+            if actual_sha.lower() != expected_sha.lower():
+                tmp_path.unlink(missing_ok=True)
+                return False, "Downloaded DB failed SHA256 validation."
+
+        tmp_path.replace(DB_PATH)
+        return True, "downloaded"
+    except Exception as e:
+        tmp_path.unlink(missing_ok=True)
+        return False, f"Failed to download DB: {e}"
 
 # Sidebar configuration
 with st.sidebar:
@@ -59,17 +124,29 @@ with st.sidebar:
     st.divider()
     
     # Database info
-    db_path = "report_writing_python.duckdb"
-    if os.path.exists(db_path):
+    db_ready, db_source = ensure_database()
+    if db_ready:
         st.success(f"✅ Connected to database")
+        if db_source == "downloaded":
+            st.caption("Loaded private DB from configured remote source.")
         
         # Show database stats
-        conn = duckdb.connect(db_path)
+        conn = duckdb.connect(str(DB_PATH))
         chunk_count = conn.execute("SELECT COUNT(*) FROM document_chunks").fetchone()[0]
         st.metric("Total Chunks", chunk_count)
         conn.close()
     else:
-        st.error("❌ Database not found. Run main.py first.")
+        st.error("❌ Database unavailable.")
+        st.caption(
+            "Provide `RAG_DB_URL` in Streamlit secrets, or include the DB file in the repo."
+        )
+        st.code(
+            "RAG_DB_URL = \"https://<private-storage>/report_writing_python.duckdb\"\n"
+            "RAG_DB_BEARER_TOKEN = \"<optional-token>\"\n"
+            "RAG_DB_SHA256 = \"<optional-sha256>\"",
+            language="toml",
+        )
+        st.caption(db_source)
         st.stop()
     
     st.divider()
@@ -90,7 +167,7 @@ def query_duckdb(query_text, top_k=3):
     embedding_model = get_embedding_model()
     query_embedding = embedding_model.embed_query(query_text)
     
-    conn = duckdb.connect(db_path)
+    conn = duckdb.connect(str(DB_PATH))
     result = conn.execute("""
         SELECT 
             id,

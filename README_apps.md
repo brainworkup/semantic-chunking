@@ -182,6 +182,15 @@ OPENAI_API_KEY="your-key-here"
 
 **"Database not found" error:**
 - Run `main.py` (Python) or `source("main.R")` (R) first to create the database
+- For Streamlit Cloud without a public DB file:
+  - Store the DB in private object storage (S3/GCS/R2/etc.)
+  - Add Streamlit secrets:
+    ```toml
+    RAG_DB_URL = "https://<private-storage>/report_writing_python.duckdb"
+    RAG_DB_BEARER_TOKEN = "<optional-token>"
+    RAG_DB_SHA256 = "<optional-sha256>"
+    ```
+  - The app will download the DB at startup when it is not present locally
 
 **"API key not found" error:**
 - Set your `OPENAI_API_KEY` environment variable

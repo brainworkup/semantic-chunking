@@ -228,3 +228,4 @@ conversation-export.json
 
 # macOS
 .DS_Store
+response_template.md

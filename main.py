@@ -13,7 +13,6 @@ loader = PyPDFLoader(pdf_path)
 # Load all pages and extract text content
 pages = [page.page_content for page in loader.lazy_load()]
 
-
 # 2. Semantic Chunking
 
 # Initialize the text splitter
