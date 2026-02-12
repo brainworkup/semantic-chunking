@@ -20,25 +20,27 @@ pages = [page.page_content for page in loader.lazy_load()]
 text_splitter = SemanticChunker(OpenAIEmbeddings(model="text-embedding-3-large"))
 chunks = text_splitter.create_documents(pages)
 
-
 # 3. Clean the chunks for optimal RAG performance
+
 
 def clean_hyphenated_linebreaks(text):
     """Join words split by hyphens across line breaks."""
-    return re.sub(r'(\w+)-\n(\w+)', r'\1\2', text)
+    return re.sub(r"(\w+)-\n(\w+)", r"\1\2", text)
+
 
 def fix_ligatures(text):
     """Replace ligature characters with standard letter equivalents."""
     ligature_map = {
-        'ﬁ': 'fi',  # U+FB01
-        'ﬂ': 'fl',  # U+FB02
-        'ﬀ': 'ff',  # U+FB00
-        'ﬃ': 'ffi', # U+FB03
-        'ﬄ': 'ffl', # U+FB04
+        "ﬁ": "fi",  # U+FB01
+        "ﬂ": "fl",  # U+FB02
+        "ﬀ": "ff",  # U+FB00
+        "ﬃ": "ffi",  # U+FB03
+        "ﬄ": "ffl",  # U+FB04
     }
     for ligature, replacement in ligature_map.items():
         text = text.replace(ligature, replacement)
     return text
+
 
 # Apply cleaning transformations
 chunks_cleaned = []
@@ -48,16 +50,14 @@ for chunk in chunks:
     # Fix ligature characters
     cleaned_content = fix_ligatures(cleaned_content)
     # Create cleaned chunk
-    chunks_cleaned.append(Document(
-        page_content=cleaned_content,
-        metadata=chunk.metadata
-    ))
+    chunks_cleaned.append(
+        Document(page_content=cleaned_content, metadata=chunk.metadata)
+    )
 
 # Filter out very short chunks (likely artifacts)
 MIN_CHUNK_LENGTH = 50
 chunks_final = [
-    chunk for chunk in chunks_cleaned 
-    if len(chunk.page_content) >= MIN_CHUNK_LENGTH
+    chunk for chunk in chunks_cleaned if len(chunk.page_content) >= MIN_CHUNK_LENGTH
 ]
 
 print(f"Chunks after cleaning: {len(chunks)} → {len(chunks_final)}")
@@ -70,17 +70,20 @@ texts = [chunk.page_content for chunk in chunks_final]
 
 # Create a vector store with optimized chunks
 vectorstore = InMemoryVectorStore.from_texts(
-    texts,
-    embedding=OpenAIEmbeddings(model="text-embedding-3-large")
+    texts, embedding=OpenAIEmbeddings(model="text-embedding-3-large")
 )
 
 # 4. Setting Up the Retriever
-retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"score_threshold": 0.7, "k":3})
+retriever = vectorstore.as_retriever(
+    search_type="similarity", search_kwargs={"score_threshold": 0.7, "k": 3}
+)
 
 # 5. User Query
 
 # Define the user query
-user_query = "What are the key components of effective report writing according to the document?"
+user_query = (
+    "What are the key components of effective report writing according to the document?"
+)
 
 # 6. Retrieval
 
@@ -104,6 +107,7 @@ Provide a clear and concise answer based on the given content.
 
 # Structure the prompt
 from langchain_core.prompts import ChatPromptTemplate
+
 structured_prompt = ChatPromptTemplate.from_template(prompt_template)
 
 # 8. Processing Chain Creation
@@ -117,40 +121,12 @@ chain = structured_prompt | llm | StrOutputParser()
 # 9. Invoke the Chain
 
 # Invoke the chain with the retrieved documents and user query
-response = chain.invoke({
-    "retrieved_documents": retrieved_documents,
-    "user_query": user_query
-})
+response = chain.invoke(
+    {"retrieved_documents": retrieved_documents, "user_query": user_query}
+)
 
 # 10. Output the Response
 
 # Output the generated response
 print("Response:")
 print(response)
-
-# chatlas
-
-import os
-from chatlas import ChatOllama
-
-chat = ChatOllama(
-    model = "gemma3:1b",
-    system_prompt = "You are a terse and helpful assistant.",
-)
-
-chat.console()
-
-from chatlas import ChatOllama
-from shiny.express import ui
-
-chat = ui.Chat(
-    id="ui_chat"
-)
-chat.ui()
-
-chat_model = ChatOllama(model = "gemma3:1b")
-
-@chat.on_user_submit
-async def handle_user_input():
-    response = chat_model.stream(chat.user_input())
-    await chat.append_message_stream(response)

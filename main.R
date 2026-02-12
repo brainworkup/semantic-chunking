@@ -63,6 +63,10 @@ message(sprintf("Chunks after cleaning: %d → %d",
 if (file.exists("report_writing.ragnar.duckdb")) {
   file.remove("report_writing.ragnar.duckdb")  
 }
+if (file.exists("report_writing.ragnar.duckdb.wal")) {
+  file.remove("report_writing.ragnar.duckdb.wal")  
+}
+
 store_location <- "report_writing.ragnar.duckdb"
 
 store <- ragnar_store_create(
@@ -108,7 +112,7 @@ Provide a clear and concise answer based on the given content.
 
 # 8. Create chat with OpenAI
 chat <- chat_openai(
-  model = "gpt-4o",
+  model = "gpt-5.2",
   system_prompt = "You are a helpful assistant that answers questions based on provided context."
 )
 
@@ -129,7 +133,7 @@ response <- chat$chat(full_prompt)
 
 # Output the response
 cat("\nResponse:\n")
-cat(response, "\n")
+print(response)
 
 # Alternative: Register ragnar retrieval tool with ellmer chat
 # This allows the LLM to retrieve chunks on-demand during conversation
@@ -139,7 +143,7 @@ cat("\n\n=== Example with ragnar tool registration ===\n\n")
 # Create a new chat with system prompt
 chat_with_tool <- chat_openai(
   system_prompt = "You are a helpful assistant. Use the search_store tool to retrieve relevant information before answering questions.",
-  model = "gpt-4o"
+  model = "gpt-5.2"
 )
 
 # Register the ragnar retrieval tool
@@ -149,8 +153,11 @@ ragnar_register_tool_retrieve(chat_with_tool, store, top_k = 3)
 response_with_tool <- chat_with_tool$chat(user_query)
 
 cat("\nResponse with tool:\n")
-cat(response_with_tool, "\n")
+print(response_with_tool)
 
 # For interactive console usage (similar to chatlas console mode):
 # Uncomment the following line to start an interactive chat session
-chat_with_tool$console()
+# ellmer::live_console(chat_with_tool)
+ellmer::live_browser(chat_with_tool)
+
+ragnar_store_inspect(store)
