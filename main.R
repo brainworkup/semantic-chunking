@@ -158,6 +158,31 @@ print(response_with_tool)
 # For interactive console usage (similar to chatlas console mode):
 # Uncomment the following line to start an interactive chat session
 # ellmer::live_console(chat_with_tool)
-ellmer::live_browser(chat_with_tool)
+# ellmer::live_browser(chat_with_tool)
 
-ragnar_store_inspect(store)
+# ragnar_store_inspect(store)
+
+# Save the response as a markdown template file
+output_file <- "response_template_r.md"
+writeLines(
+  c(
+    "# RAG Response Template",
+    "",
+    "## Query",
+    user_query,
+    "",
+    "## Retrieved Context",
+    "```",
+    retrieved_text,
+    "```",
+    "",
+    "## Response",
+    as.character(response_with_tool),
+    "",
+    "---",
+    paste("Generated on:", Sys.time())
+  ),
+  output_file
+)
+
+message(sprintf("\n✓ Response saved to: %s", output_file))

@@ -73,13 +73,73 @@ vectorstore = InMemoryVectorStore.from_texts(
     texts, embedding=OpenAIEmbeddings(model="text-embedding-3-large")
 )
 
+# Save embeddings to DuckDB for persistent storage
+import duckdb
+import json
+
+db_path = "report_writing_python.duckdb"
+conn = duckdb.connect(db_path)
+
+# Create table for storing chunks and embeddings
+conn.execute("""
+    CREATE TABLE IF NOT EXISTS document_chunks (
+        id INTEGER PRIMARY KEY,
+        text TEXT,
+        embedding FLOAT[],
+        metadata TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+
+# Get embeddings from vectorstore
+embedding_model = OpenAIEmbeddings(model="text-embedding-3-large")
+
+# Insert chunks with their embeddings
+for idx, (text, chunk) in enumerate(zip(texts, chunks_final)):
+    embedding = embedding_model.embed_query(text)
+    metadata_json = json.dumps(chunk.metadata)
+
+    conn.execute(
+        """
+        INSERT INTO document_chunks (id, text, embedding, metadata)
+        VALUES (?, ?, ?, ?)
+        """,
+        [idx, text, embedding, metadata_json],
+    )
+
+conn.commit()
+print(f"\n✓ Saved {len(texts)} chunks with embeddings to {db_path}")
+
+
+# Create a helper function to query from DuckDB
+def query_duckdb(query_text, top_k=3):
+    """Query the DuckDB vector store."""
+    query_embedding = embedding_model.embed_query(query_text)
+
+    # Calculate cosine similarity using DuckDB
+    result = conn.execute(
+        """
+        SELECT 
+            id,
+            text,
+            metadata,
+            list_cosine_similarity(embedding, ?::FLOAT[]) as similarity
+        FROM document_chunks
+        ORDER BY similarity DESC
+        LIMIT ?
+    """,
+        [query_embedding, top_k],
+    ).fetchall()
+
+    return result
+
+
 # 4. Setting Up the Retriever
 retriever = vectorstore.as_retriever(
     search_type="similarity", search_kwargs={"score_threshold": 0.7, "k": 3}
 )
 
 # 5. User Query
-
 # Define the user query
 user_query = (
     "What are the key components of effective report writing according to the document?"
@@ -130,3 +190,28 @@ response = chain.invoke(
 # Output the generated response
 print("Response:")
 print(response)
+
+# Save the response as a markdown file for later use as a prompt/instruction template
+output_file = "response_template.md"
+with open(output_file, "w", encoding="utf-8") as f:
+    f.write("# Response Template\n\n")
+    f.write("## Original Query\n")
+    f.write(f"{user_query}\n\n")
+    f.write("## Generated Response\n")
+    f.write(f"{response}\n\n")
+    f.write("---\n")
+    f.write("Generated on: " + str(__import__("datetime").datetime.now()) + "\n")
+
+print(f"\nResponse saved to {output_file}")
+
+# Demonstrate querying from DuckDB
+print("\n=== Testing DuckDB Query ===")
+duckdb_results = query_duckdb(user_query, top_k=3)
+print(f"\nRetrieved {len(duckdb_results)} chunks from DuckDB:")
+for idx, (doc_id, text, metadata, similarity) in enumerate(duckdb_results, 1):
+    print(f"\n{idx}. Similarity: {similarity:.4f}")
+    print(f"   Text preview: {text[:100]}...")
+
+# Close DuckDB connection
+conn.close()
+print(f"\n✓ DuckDB connection closed")
