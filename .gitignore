@@ -218,3 +218,6 @@ Essentials_Report_Writing_1stEd.pdf
 report_writing.ragnar.duckdb
 report_writing.ragnar.duckdb.wal
 report_writing_python.duckdb
+conversation-export.html
+.gitignore
+conversation-export.md
