@@ -1,4 +1,4 @@
-# Semantic Chunking
+# Semantic Chunking for RAG
 
 This repository provides implementations of semantic text chunking in both Python and R for processing documents and building Retrieval-Augmented Generation (RAG) systems.
 
