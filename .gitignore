@@ -219,5 +219,12 @@ report_writing.ragnar.duckdb
 report_writing.ragnar.duckdb.wal
 report_writing_python.duckdb
 conversation-export.html
-.gitignore
 conversation-export.md
+conversation-export.json
+
+# Personal/IDE settings
+.positai/
+.python-version
+
+# macOS
+.DS_Store
