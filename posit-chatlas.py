@@ -2,6 +2,7 @@
 
 import os
 from chatlas import ChatOllama
+from shiny.express import ui
 
 chat = ChatOllama(
     model = "gemma3:1b",
@@ -10,8 +11,7 @@ chat = ChatOllama(
 
 chat.console()
 
-from chatlas import ChatOllama
-from shiny.express import ui
+
 
 chat = ui.Chat(
     id="ui_chat"
